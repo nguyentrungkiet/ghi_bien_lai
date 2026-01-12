@@ -8,6 +8,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+import requests
+from io import BytesIO
 
 # Đăng ký font tiếng Việt
 try:
@@ -28,16 +30,9 @@ except:
     FONT_BOLD = 'Helvetica-Bold'
 
 # Đường dẫn logo và dấu mộc (cấu hình ở đây)
-# Khi deploy lên cloud, thay đổi thành:
-# LOGO_PATH = "logo.jpg"  (nếu upload cùng code)
-# hoặc LOGO_PATH = "https://url-logo-của-bạn.jpg"  (nếu dùng URL)
-LOGO_PATH = os.getenv("LOGO_PATH", "logo.jpg")  # Ưu tiên lấy từ biến môi trường
+# Logo từ GitHub (hoạt động cả local và cloud)
+LOGO_PATH = os.getenv("LOGO_PATH", "https://raw.githubusercontent.com/nguyentrungkiet/ghi_bien_lai/main/logo.jpg")
 DAM_MOC_PATH = ""  # Bỏ dấu mộc
-
-# Kiểm tra xem file logo có tồn tại local không, nếu không thì có thể là URL
-if LOGO_PATH and not LOGO_PATH.startswith("http") and not os.path.exists(LOGO_PATH):
-    print(f"⚠️ Cảnh báo: Không tìm thấy logo tại {LOGO_PATH}")
-    LOGO_PATH = ""  # Bỏ qua nếu không tìm thấy
 
 def tao_bien_lai_pdf(file_path, hoten, lop, thang_list, hocphi, ngay):
     """Tạo file PDF biên lai"""
@@ -51,10 +46,19 @@ def tao_bien_lai_pdf(file_path, hoten, lop, thang_list, hocphi, ngay):
         c.rect(2*cm, 2*cm, width-4*cm, height-4*cm)
         
         # Logo (nếu có)
-        if LOGO_PATH and os.path.exists(LOGO_PATH):
+        if LOGO_PATH:
             try:
-                c.drawImage(LOGO_PATH, 3*cm, height-5*cm, width=3*cm, height=3*cm, preserveAspectRatio=True)
-            except:
+                if LOGO_PATH.startswith('http'):
+                    # Download logo từ URL
+                    response = requests.get(LOGO_PATH, timeout=5)
+                    if response.status_code == 200:
+                        img_data = BytesIO(response.content)
+                        c.drawImage(img_data, 3*cm, height-5*cm, width=3*cm, height=3*cm, preserveAspectRatio=True)
+                elif os.path.exists(LOGO_PATH):
+                    # Logo local
+                    c.drawImage(LOGO_PATH, 3*cm, height-5*cm, width=3*cm, height=3*cm, preserveAspectRatio=True)
+            except Exception as e:
+                print(f"Không thể load logo: {e}")
                 pass
         
         # Tạo chuỗi hiển thị tháng (chỉ hiển thị tháng, không hiển thị năm)
