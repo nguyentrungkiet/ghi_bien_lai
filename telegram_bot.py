@@ -1,8 +1,8 @@
 import os
 import sys
 from datetime import datetime
-from telegram import Update, ForceReply
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
@@ -10,6 +10,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import requests
 from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 
 # Đăng ký font tiếng Việt
 try:
@@ -33,6 +34,146 @@ except:
 # Logo từ GitHub (hoạt động cả local và cloud)
 LOGO_PATH = os.getenv("LOGO_PATH", "https://raw.githubusercontent.com/nguyentrungkiet/ghi_bien_lai/main/logo.jpg")
 DAM_MOC_PATH = ""  # Bỏ dấu mộc
+
+# Chat ID của group nhận thông báo (để trống nếu không muốn gửi)
+# Để lấy chat_id: Thêm bot vào group, gửi tin nhắn bất kỳ, rồi truy cập:
+# https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+GROUP_CHAT_ID = os.getenv("GROUP_CHAT_ID", "-1003625829454")
+
+def tao_bien_lai_image(file_path, hoten, lop, thang_list, hocphi, ngay):
+    """Tạo file ảnh biên lai"""
+    try:
+        # Kích thước giảm một nửa chiều cao
+        width, height = 2480, 1754
+        
+        # Tạo ảnh nền trắng
+        img = Image.new('RGB', (width, height), 'white')
+        draw = ImageDraw.Draw(img)
+        
+        # Load fonts (Windows Arial hoặc fallback)
+        try:
+            if sys.platform == 'win32':
+                font_regular = ImageFont.truetype(r'C:\Windows\Fonts\arial.ttf', 50)
+                font_bold = ImageFont.truetype(r'C:\Windows\Fonts\arialbd.ttf', 50)
+                font_title = ImageFont.truetype(r'C:\Windows\Fonts\arialbd.ttf', 100)
+                font_small = ImageFont.truetype(r'C:\Windows\Fonts\arial.ttf', 35)
+            else:
+                font_regular = ImageFont.load_default()
+                font_bold = ImageFont.load_default()
+                font_title = ImageFont.load_default()
+                font_small = ImageFont.load_default()
+        except:
+            font_regular = ImageFont.load_default()
+            font_bold = ImageFont.load_default()
+            font_title = ImageFont.load_default()
+            font_small = ImageFont.load_default()
+        
+        # Vẽ border
+        border_margin = 80
+        draw.rectangle(
+            [border_margin, border_margin, width-border_margin, height-border_margin],
+            outline='black',
+            width=8
+        )
+        
+        # Logo (nếu có)
+        y_pos = 150
+        if LOGO_PATH:
+            try:
+                if LOGO_PATH.startswith('http'):
+                    response = requests.get(LOGO_PATH, timeout=5)
+                    if response.status_code == 200:
+                        logo = Image.open(BytesIO(response.content))
+                elif os.path.exists(LOGO_PATH):
+                    logo = Image.open(LOGO_PATH)
+                else:
+                    logo = None
+                
+                if logo:
+                    # Resize logo
+                    logo.thumbnail((350, 350))
+                    img.paste(logo, (150, y_pos), logo if logo.mode == 'RGBA' else None)
+            except Exception as e:
+                print(f"Không thể load logo: {e}")
+        
+        # Tiêu đề
+        y_pos = 350
+        title = "BIÊN LAI THU TIỀN"
+        title_bbox = draw.textbbox((0, 0), title, font=font_title)
+        title_width = title_bbox[2] - title_bbox[0]
+        draw.text(((width - title_width) / 2, y_pos), title, fill='black', font=font_title)
+        
+        # Số biên lai
+        y_pos += 100
+        so_bien_lai = f"Số: BL{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        draw.text((width - 800, y_pos), so_bien_lai, fill='black', font=font_small)
+        
+        # Thông tin
+        y_pos = 650
+        left_margin = 250
+        
+        # Họ tên
+        draw.text((left_margin, y_pos), "Họ và tên học sinh:", fill='black', font=font_regular)
+        draw.text((left_margin + 800, y_pos), hoten, fill='black', font=font_bold)
+        
+        # Lớp
+        y_pos += 100
+        draw.text((left_margin, y_pos), "Lớp:", fill='black', font=font_regular)
+        draw.text((left_margin + 800, y_pos), lop, fill='black', font=font_bold)
+        
+        # Tháng học
+        y_pos += 100
+        draw.text((left_margin, y_pos), "Tháng học:", fill='black', font=font_regular)
+        if len(thang_list) == 1:
+            thang_text = str(int(thang_list[0][0]))
+        else:
+            thang_text = ", ".join([str(int(t[0])) for t in thang_list])
+        draw.text((left_margin + 800, y_pos), thang_text, fill='black', font=font_bold)
+        
+        # Học phí
+        y_pos += 100
+        draw.text((left_margin, y_pos), "Học phí:", fill='black', font=font_regular)
+        draw.text((left_margin + 800, y_pos), f"{hocphi:,.0f} VNĐ", fill='black', font=font_bold)
+        
+        # Ngày đóng
+        y_pos += 100
+        draw.text((left_margin, y_pos), "Ngày đóng tiền:", fill='black', font=font_regular)
+        draw.text((left_margin + 800, y_pos), ngay, fill='black', font=font_bold)
+        
+        # Gạch ngang
+        y_pos += 80
+        draw.line([(left_margin, y_pos), (width - left_margin, y_pos)], fill='black', width=3)
+        
+        # ĐÃ NHẬN - màu đỏ
+        y_pos += 120
+        da_nhan = "ĐÃ NHẬN"
+        try:
+            font_da_nhan = ImageFont.truetype(r'C:\Windows\Fonts\arialbd.ttf', 80) if sys.platform == 'win32' else font_bold
+        except:
+            font_da_nhan = font_bold
+        da_nhan_bbox = draw.textbbox((0, 0), da_nhan, font=font_da_nhan)
+        da_nhan_width = da_nhan_bbox[2] - da_nhan_bbox[0]
+        draw.text(((width - da_nhan_width) / 2, y_pos), da_nhan, fill='red', font=font_da_nhan)
+        
+        # Footer
+        y_pos = height - 300
+        footer1 = "Cảm ơn quý phụ huynh đã tin tưởng!"
+        footer1_bbox = draw.textbbox((0, 0), footer1, font=font_small)
+        footer1_width = footer1_bbox[2] - footer1_bbox[0]
+        draw.text(((width - footer1_width) / 2, y_pos), footer1, fill='gray', font=font_small)
+        
+        y_pos += 60
+        footer2 = f"Ngày in: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        footer2_bbox = draw.textbbox((0, 0), footer2, font=font_small)
+        footer2_width = footer2_bbox[2] - footer2_bbox[0]
+        draw.text(((width - footer2_width) / 2, y_pos), footer2, fill='gray', font=font_small)
+        
+        # Lưu ảnh
+        img.save(file_path, 'PNG', quality=95)
+        return True
+    except Exception as e:
+        print(f"Lỗi tạo ảnh: {e}")
+        return False
 
 def tao_bien_lai_pdf(file_path, hoten, lop, thang_list, hocphi, ngay):
     """Tạo file PDF biên lai"""
@@ -321,10 +462,32 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Parse tháng
         thang_list = []
+        invalid_months = []
+        
         for item in thang_str.replace(" ", "").split(","):
             if "/" in item:
                 parts = item.split("/")
-                thang_list.append((parts[0].zfill(2), parts[1]))
+                month = int(parts[0])
+                year = parts[1]
+                
+                # Kiểm tra tháng hợp lệ (1-12)
+                if month < 1 or month > 12:
+                    invalid_months.append(str(month))
+                else:
+                    thang_list.append((parts[0].zfill(2), year))
+        
+        # Nếu có tháng không hợp lệ, báo lỗi
+        if invalid_months:
+            await update.message.reply_text(
+                f"❌ Tháng không hợp lệ: {', '.join(invalid_months)}\n\n"
+                "⚠️ Tháng phải từ 1 đến 12!\n\n"
+                "Ví dụ đúng:\n"
+                "• `Nguyễn Văn A lớp 7 tháng 1 350k`\n"
+                "• `Huỳnh Trân lớp 8 tháng 12 350k`\n"
+                "• `Lê Thị B lớp 9 tháng 1+2+3 500k`",
+                parse_mode='Markdown'
+            )
+            return
         
         if not thang_list:
             await update.message.reply_text("❌ Định dạng tháng không đúng! Ví dụ: 01/2026 hoặc 01/2026, 02/2026")
@@ -336,23 +499,49 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Ngày đóng tiền
         ngay = datetime.now().strftime("%d/%m/%Y")
         
-        # Tạo file PDF
+        # Tạo file ảnh
         await update.message.reply_text("⏳ Đang tạo biên lai...")
         
         thang_str_file = "_".join([f"{t[0]}{t[1]}" for t in thang_list])
-        filename = f"BienLai_{hoten.replace(' ', '_')}_{thang_str_file}.pdf"
+        filename = f"BienLai_{hoten.replace(' ', '_')}_{thang_str_file}.png"
         file_path = filename
         
-        success = tao_bien_lai_pdf(file_path, hoten, lop, thang_list, hocphi, ngay)
+        success = tao_bien_lai_image(file_path, hoten, lop, thang_list, hocphi, ngay)
         
         if success and os.path.exists(file_path):
-            # Gửi file PDF
+            # Gửi file ảnh cho người dùng với nút xóa
+            keyboard = [[InlineKeyboardButton("🗑 Xóa tin nhắn này", callback_data="delete")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
             with open(file_path, 'rb') as f:
-                await update.message.reply_document(
-                    document=f,
-                    filename=filename,
-                    caption=f"✅ Biên lai học phí\n👤 {hoten}\n🏫 Lớp {lop}\n💰 {hocphi:,.0f} VNĐ"
+                sent_message = await update.message.reply_photo(
+                    photo=f,
+                    caption=f"✅ Biên lai học phí\n👤 {hoten}\n🏫 Lớp {lop}\n💰 {hocphi:,.0f} VNĐ",
+                    reply_markup=reply_markup
                 )
+            
+            # Gửi vào group (nếu có cấu hình)
+            if GROUP_CHAT_ID:
+                try:
+                    # Format thông tin tháng
+                    if len(thang_list) == 1:
+                        thang_info = f"tháng {int(thang_list[0][0])}"
+                    else:
+                        thang_info = f"các tháng {', '.join([str(int(t[0])) for t in thang_list])}"
+                    
+                    # Tạo nội dung tin nhắn
+                    message = f"📋 **BIÊN LAI MỚI**\n\n👤 Họ tên: **{hoten}**\n🏫 Lớp: **{lop}**\n📅 Học phí {thang_info}\n💰 Số tiền: **{hocphi:,.0f} VNĐ**\n🗓 Ngày đóng: {ngay}"
+                    
+                    # Gửi ảnh và thông tin vào group
+                    with open(file_path, 'rb') as f:
+                        await context.bot.send_photo(
+                            chat_id=GROUP_CHAT_ID,
+                            photo=f,
+                            caption=message,
+                            parse_mode='Markdown'
+                        )
+                except Exception as e:
+                    print(f"⚠️ Không thể gửi vào group: {e}")
             
             # Xóa file tạm
             try:
@@ -368,6 +557,21 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lệnh /help"""
     await start(update, context)
+
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Xử lý khi nhấn nút"""
+    query = update.callback_query
+    await query.answer()
+    
+    if query.data == "delete":
+        # Xóa tin nhắn biên lai
+        try:
+            await query.message.delete()
+            # Xóa cả tin nhắn yêu cầu của người dùng (nếu có thể)
+            if query.message.reply_to_message:
+                await query.message.reply_to_message.delete()
+        except Exception as e:
+            await query.message.reply_text(f"⚠️ Không thể xóa tin nhắn: {str(e)}")
 
 def main():
     """Khởi chạy bot"""
@@ -388,6 +592,7 @@ def main():
     # Đăng ký handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, xu_ly_tin_nhan))
     
     # Chạy bot
