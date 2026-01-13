@@ -11,155 +11,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 import requests
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
-import re
-import math
-
-# ===== GOOGLE SHEETS INTEGRATION =====
-import gspread
-from google.oauth2.service_account import Credentials
-
-# Cấu hình Google Sheets
-GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "1rq1DDObItEtFeyyghv-Do-hPvYB_mwaTWihTJ8lfQCk")
-GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Thống kê học phí")
-GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
-
-# Học phí mỗi tháng (VNĐ)
-HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "350000"))
-
-# Khởi tạo Google Sheets client
-gc = None
-
-def init_google_sheets():
-    """Khởi tạo kết nối Google Sheets"""
-    global gc
-    try:
-        # Kiểm tra nếu có credentials file
-        if os.path.exists(GOOGLE_CREDENTIALS_FILE):
-            scopes = [
-                'https://www.googleapis.com/auth/spreadsheets',
-                'https://www.googleapis.com/auth/drive'
-            ]
-            credentials = Credentials.from_service_account_file(GOOGLE_CREDENTIALS_FILE, scopes=scopes)
-            gc = gspread.authorize(credentials)
-            print("✅ Kết nối Google Sheets thành công!")
-            return True
-        else:
-            print(f"⚠️ Không tìm thấy file credentials: {GOOGLE_CREDENTIALS_FILE}")
-            print("Bot sẽ chạy mà không có tính năng tra cứu học sinh")
-            return False
-    except Exception as e:
-        print(f"❌ Lỗi kết nối Google Sheets: {e}")
-        return False
-
-def tim_hoc_sinh(hoten, lop):
-    """
-    Tìm học sinh trong Google Sheet theo họ tên và lớp
-    Trả về: (row_number, ten_trong_sheet, thang_da_dong) hoặc None nếu không tìm thấy
-    """
-    if not gc:
-        return None
-    
-    try:
-        sheet = gc.open_by_key(GOOGLE_SHEET_ID).worksheet(GOOGLE_SHEET_NAME)
-        records = sheet.get_all_values()
-        
-        # Tìm vị trí các cột (dòng đầu là header)
-        header = records[0] if records else []
-        
-        # Tìm index của các cột (không phân biệt hoa thường)
-        idx_hoten = -1
-        idx_lop = -1
-        idx_thang = -1
-        
-        for i, col in enumerate(header):
-            col_lower = col.lower().strip()
-            if 'họ' in col_lower and 'tên' in col_lower:
-                idx_hoten = i
-            elif col_lower == 'lớp':
-                idx_lop = i
-            elif col_lower == 'tháng':
-                idx_thang = i
-        
-        if idx_hoten == -1 or idx_lop == -1 or idx_thang == -1:
-            print(f"⚠️ Không tìm thấy đủ các cột cần thiết. Header: {header}")
-            return None
-        
-        # Chuẩn hóa input để so sánh
-        hoten_normalized = normalize_name(hoten)
-        lop_normalized = normalize_lop(lop)
-        
-        # Tìm kiếm học sinh
-        for row_num, row in enumerate(records[1:], start=2):  # Bắt đầu từ dòng 2 (bỏ header)
-            if len(row) > max(idx_hoten, idx_lop, idx_thang):
-                ten_trong_sheet = row[idx_hoten].strip()
-                lop_trong_sheet = row[idx_lop].strip()
-                
-                ten_normalized = normalize_name(ten_trong_sheet)
-                lop_sheet_normalized = normalize_lop(lop_trong_sheet)
-                
-                # So sánh (có thể tìm gần đúng)
-                if (hoten_normalized == ten_normalized or 
-                    ten_normalized in hoten_normalized or 
-                    hoten_normalized in ten_normalized) and lop_normalized == lop_sheet_normalized:
-                    
-                    thang_da_dong = row[idx_thang].strip() if idx_thang < len(row) else "0"
-                    
-                    # Xử lý trường hợp "Cả năm" hoặc giá trị đặc biệt
-                    if thang_da_dong.lower() in ['cả năm', 'ca nam', 'full', '12']:
-                        thang_da_dong = 12  # Đã đóng đủ cả năm
-                    else:
-                        try:
-                            thang_da_dong = int(thang_da_dong)
-                        except:
-                            thang_da_dong = 0
-                    
-                    return (row_num, idx_thang + 1, ten_trong_sheet, thang_da_dong)  # +1 vì Google Sheets đánh số từ 1
-        
-        return None
-    except Exception as e:
-        print(f"❌ Lỗi tìm học sinh: {e}")
-        return None
-
-def normalize_name(name):
-    """Chuẩn hóa tên để so sánh (bỏ dấu, lowercase, bỏ khoảng trắng thừa)"""
-    import unicodedata
-    name = name.lower().strip()
-    # Loại bỏ dấu tiếng Việt
-    name = unicodedata.normalize('NFD', name)
-    name = ''.join(c for c in name if unicodedata.category(c) != 'Mn')
-    # Loại bỏ khoảng trắng thừa
-    name = ' '.join(name.split())
-    return name
-
-def normalize_lop(lop):
-    """Chuẩn hóa lớp để so sánh (lấy số, bỏ chữ)"""
-    # Lấy số đầu tiên trong chuỗi lớp
-    match = re.search(r'(\d+)', str(lop))
-    if match:
-        return match.group(1)
-    return str(lop).lower().strip()
-
-def cap_nhat_thang_da_dong(row_number, col_number, thang_moi):
-    """Cập nhật tháng đã đóng trong Google Sheet"""
-    if not gc:
-        return False
-    
-    try:
-        sheet = gc.open_by_key(GOOGLE_SHEET_ID).worksheet(GOOGLE_SHEET_NAME)
-        sheet.update_cell(row_number, col_number, thang_moi)
-        print(f"✅ Đã cập nhật tháng {thang_moi} cho dòng {row_number}")
-        return True
-    except Exception as e:
-        print(f"❌ Lỗi cập nhật Google Sheet: {e}")
-        return False
-
-def tinh_so_thang_dong(so_tien):
-    """
-    Tính số tháng đóng dựa vào số tiền
-    Học phí: HOC_PHI_MOI_THANG/tháng
-    """
-    so_thang = so_tien / HOC_PHI_MOI_THANG
-    return math.ceil(so_thang)  # Làm tròn lên
 
 # Đăng ký font tiếng Việt
 try:
@@ -432,45 +283,42 @@ def tao_bien_lai_pdf(file_path, hoten, lop, thang_list, hocphi, ngay):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Lệnh /start - Hướng dẫn sử dụng"""
-    
-    # Kiểm tra Google Sheets có kết nối không
-    sheets_status = "✅ Đã kết nối" if gc else "❌ Chưa kết nối"
-    
-    welcome_text = f"""
+    welcome_text = """
 🎓 **BIÊN LAI HỌC PHÍ TỰ ĐỘNG**
 
 Chào mừng bạn! Bot này giúp tạo biên lai học phí nhanh chóng.
 
-📊 **Google Sheets:** {sheets_status}
-
 📝 **Cách sử dụng:**
 
-**🆕 TỰ ĐỘNG TRA CỨU (khuyên dùng):**
+**Siêu ngắn gọn (khuyên dùng):**
 ```
-Nguyễn Trung Kiệt lớp 7 350k
+Huỳnh Trân lớp 8 tháng 7 350k
 ```
-Bot sẽ tự động:
-- Tra cứu học sinh trong danh sách
-- Xác định tháng tiếp theo cần đóng
-- Tạo biên lai và cập nhật Google Sheet
 
-**Đóng nhiều tháng:**
+**Nhiều tháng (cách 1):**
 ```
-Nguyễn Văn A lớp 7 700k
+Nguyễn Văn A lớp 7 tháng 1 tháng 2 tháng 3 450k
 ```
-(700k = 2 tháng với học phí {HOC_PHI_MOI_THANG:,}/tháng)
 
-**Nhiều tháng (cũ - chỉ định tháng):**
+**Nhiều tháng (cách 2 - ngắn hơn):**
 ```
-Nguyễn Văn A lớp 7 tháng 1+2+3 1050k
+Nguyễn Văn A lớp 7 tháng 1+2+3 450k
+```
+
+**Hoặc đầy đủ:**
+```
+Họ tên: Nguyễn Văn A
+Lớp: 7A
+Tháng: 01/2026, 02/2026
+Học phí: 1500000
 ```
 
 **Đơn vị học phí:**
 - `350k` = 350,000 đồng
-- `1.05tr` = 1,050,000 đồng
+- `1.5tr` = 1,500,000 đồng
 - `350000` = 350,000 đồng
 
-🚀 Gửi thông tin ngay để nhận biên lai!
+🚀 Gửi thông tin ngay để nhận biên lai PDF!
 """
     await update.message.reply_text(welcome_text, parse_mode='Markdown')
 
@@ -484,13 +332,6 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 1. "Họ tên: xxx\nLớp: xxx\nTháng: xxx\nHọc phí: xxx"
         # 2. "họ tên, lớp, tháng, học phí" (phân cách bởi dấu phẩy)
         # 3. "họ tên lớp X tháng Y số_tiền" (tự nhiên)
-        # 4. MỚI: "họ tên lớp X số_tiền" (tự động tra cứu tháng)
-        
-        hoten = None
-        lop = None
-        thang_str = None
-        hocphi_str = None
-        auto_lookup = False  # Flag đánh dấu có tự động tra cứu không
         
         if ":" in text:
             # Định dạng có nhãn
@@ -514,7 +355,7 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Vui lòng gửi theo mẫu:\n"
                     "`Nguyễn Văn A, 7A, 01/2026, 1500000`\n\n"
                     "Hoặc tự nhiên hơn:\n"
-                    "`Nguyễn Văn A lớp 7 350k`",
+                    "`Nguyễn Văn A lớp 7 tháng 1 350k`",
                     parse_mode='Markdown'
                 )
                 return
@@ -524,179 +365,39 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             thang_str = parts[2]
             hocphi_str = parts[3]
         else:
-            # Định dạng tự nhiên: "Họ tên lớp X tháng Y số_tiền" hoặc "Họ tên lớp X số_tiền"
+            # Định dạng tự nhiên: "Họ tên lớp X tháng Y số_tiền"
+            import re
             
             # Tìm lớp (sau từ khóa "lớp" hoặc "lop")
             lop_match = re.search(r'l[oớ]p\s+(\w+)', text, re.IGNORECASE)
             if not lop_match:
                 await update.message.reply_text(
                     "❌ Không tìm thấy thông tin lớp!\n\n"
-                    "Ví dụ: `Nguyễn Văn A lớp 7 350k`",
+                    "Ví dụ: `Nguyễn Văn A lớp 7 tháng 1 350k`",
                     parse_mode='Markdown'
                 )
                 return
             lop = lop_match.group(1)
             
-            # Tìm học phí (ưu tiên tìm số có đơn vị k/tr ở cuối câu)
-            # Pattern 1: Số + k/tr (ưu tiên cao nhất)
-            hocphi_match = re.search(r'(\d+(?:[.,]\d+)?)\s*([kKtrTR]|triệu|triẹu|nghìn|nghin)(?:\s|$)', text, re.IGNORECASE)
+            # Tìm tháng (sau từ khóa "tháng" hoặc "thang")
+            # Hỗ trợ: "tháng 7", "tháng 7+8", "tháng 1 tháng 2"
             
-            if not hocphi_match:
-                # Pattern 2: Số lớn không có đơn vị (>= 100,000)
-                numbers = re.findall(r'\b(\d{6,})\b', text)
-                if numbers:
-                    so_tien = float(numbers[-1])
-                    don_vi = ''
-                else:
-                    await update.message.reply_text(
-                        "❌ Không tìm thấy thông tin học phí!\n\n"
-                        "Ví dụ: `350k` hoặc `350000` hoặc `1.05tr`",
-                        parse_mode='Markdown'
-                    )
-                    return
-            else:
-                so_tien = float(hocphi_match.group(1).replace(',', '.'))
-                don_vi = hocphi_match.group(2) or ''
-            
-            # Chuyển đổi đơn vị
-            if don_vi and don_vi.lower() in ['k']:
-                so_tien = so_tien * 1000
-            elif don_vi and don_vi.lower() in ['tr', 'triệu', 'triẹu']:
-                so_tien = so_tien * 1000000
-            elif don_vi and don_vi.lower() in ['nghìn', 'nghin']:
-                so_tien = so_tien * 1000
-            
-            hocphi_str = str(int(so_tien))
-            
-            # Tìm họ tên (phần trước "lớp")
-            hoten_match = re.match(r'^(.+?)\s+l[oớ]p', text, re.IGNORECASE)
-            if hoten_match:
-                hoten = hoten_match.group(1).strip()
-            else:
-                hoten = text.split()[0]  # Lấy từ đầu tiên
-            
-            # Kiểm tra xem có chỉ định tháng không
+            # Tìm pattern "tháng X+Y+Z" hoặc "tháng X"
             thang_plus_match = re.search(r'th[aá]ng\s+([\d+]+)', text, re.IGNORECASE)
             
             if thang_plus_match:
-                # Có chỉ định tháng - xử lý như cũ
+                # Xử lý dạng "7+8+9" hoặc "7"
                 thang_str_raw = thang_plus_match.group(1)
-                current_year = datetime.now().year
-                
                 if '+' in thang_str_raw:
+                    # Tách các tháng bằng dấu +
                     thang_matches = thang_str_raw.split('+')
                 else:
+                    # Chỉ có 1 tháng hoặc tìm nhiều lần "tháng X"
                     thang_matches = re.findall(r'th[aá]ng\s+(\d+(?:/\d+)?)', text, re.IGNORECASE)
-                
-                if thang_matches:
-                    thang_list_temp = []
-                    for t in thang_matches:
-                        if '/' not in t:
-                            thang_list_temp.append(f"{int(t):02d}/{current_year}")
-                        else:
-                            thang_list_temp.append(t)
-                    thang_str = ", ".join(thang_list_temp)
             else:
-                # KHÔNG có chỉ định tháng -> TỰ ĐỘNG TRA CỨU GOOGLE SHEETS
-                auto_lookup = True
-        
-        # Kiểm tra dữ liệu cơ bản
-        if not all([hoten, lop, hocphi_str]):
-            await update.message.reply_text("❌ Thiếu thông tin! Vui lòng nhập đầy đủ họ tên, lớp và học phí.")
-            return
-        
-        # Parse học phí
-        hocphi = float(hocphi_str.replace(",", "").replace(".", "").replace(" ", ""))
-        
-        # ===== XỬ LÝ TỰ ĐỘNG TRA CỨU =====
-        if auto_lookup:
-            if not gc:
-                await update.message.reply_text(
-                    "⚠️ Chức năng tra cứu tự động chưa được kích hoạt.\n"
-                    "Vui lòng chỉ định tháng:\n"
-                    f"`{hoten} lớp {lop} tháng X {int(hocphi):,}`",
-                    parse_mode='Markdown'
-                )
-                return
+                thang_matches = re.findall(r'th[aá]ng\s+(\d+(?:/\d+)?)', text, re.IGNORECASE)
             
-            # Tìm học sinh trong Google Sheet
-            result = tim_hoc_sinh(hoten, lop)
-            
-            if not result:
-                await update.message.reply_text(
-                    f"❌ Không tìm thấy học sinh **{hoten}** lớp **{lop}** trong danh sách!\n\n"
-                    "Vui lòng kiểm tra lại thông tin hoặc chỉ định tháng:\n"
-                    f"`{hoten} lớp {lop} tháng X {int(hocphi):,}`",
-                    parse_mode='Markdown'
-                )
-                return
-            
-            row_number, col_number, ten_trong_sheet, thang_da_dong = result
-            
-            # Tính số tháng đóng dựa vào số tiền
-            so_thang_dong = tinh_so_thang_dong(hocphi)
-            
-            # Tính tháng mới (từ tháng đã đóng + 1 đến tháng mới)
-            thang_bat_dau = thang_da_dong + 1
-            thang_ket_thuc = thang_da_dong + so_thang_dong
-            
-            # Kiểm tra giới hạn tháng 1-12
-            if thang_bat_dau > 12:
-                await update.message.reply_text(
-                    f"⚠️ Học sinh **{ten_trong_sheet}** đã đóng đủ học phí đến tháng 12!\n"
-                    "Không thể xuất biên lai thêm.",
-                    parse_mode='Markdown'
-                )
-                return
-            
-            if thang_ket_thuc > 12:
-                thang_ket_thuc = 12
-                so_thang_thuc_dong = thang_ket_thuc - thang_da_dong
-                hocphi_thuc = so_thang_thuc_dong * HOC_PHI_MOI_THANG
-                await update.message.reply_text(
-                    f"⚠️ Chỉ có thể đóng đến tháng 12.\n"
-                    f"Số tháng thực tế: **{so_thang_thuc_dong}** tháng (tháng {thang_bat_dau} - {thang_ket_thuc})\n"
-                    f"Học phí: **{hocphi_thuc:,.0f} VNĐ**",
-                    parse_mode='Markdown'
-                )
-                hocphi = hocphi_thuc
-            
-            # Tạo danh sách tháng
-            current_year = datetime.now().year
-            thang_list_temp = []
-            for t in range(thang_bat_dau, thang_ket_thuc + 1):
-                thang_list_temp.append(f"{t:02d}/{current_year}")
-            thang_str = ", ".join(thang_list_temp)
-            
-            # Sử dụng tên trong sheet để đảm bảo chính xác
-            hoten = ten_trong_sheet
-            
-            # Thông báo tìm thấy học sinh
-            await update.message.reply_text(
-                f"✅ Tìm thấy học sinh: **{ten_trong_sheet}**\n"
-                f"📚 Lớp: **{lop}**\n"
-                f"📅 Đã đóng đến tháng: **{thang_da_dong}**\n"
-                f"💰 Số tiền đóng: **{hocphi:,.0f} VNĐ** ({so_thang_dong} tháng)\n"
-                f"📋 Sẽ ghi biên lai: tháng **{thang_bat_dau}**" + (f" - **{thang_ket_thuc}**" if so_thang_dong > 1 else ""),
-                parse_mode='Markdown'
-            )
-        
-        # Parse tháng (cho cả trường hợp auto và manual)
-        thang_list = []
-        invalid_months = []
-        
-        if thang_str:
-            for item in thang_str.replace(" ", "").split(","):
-                if "/" in item:
-                    parts = item.split("/")
-                    month = int(parts[0])
-                    year = parts[1]
-                    
-                    # Kiểm tra tháng hợp lệ (1-12)
-                    if month < 1 or month > 12:
-                        invalid_months.append(str(month))
-                    else:
-                        thang_list.append((parts[0].zfill(2), year))
+            if not thang_matches:
                 await update.message.reply_text(
                     "❌ Không tìm thấy thông tin tháng!\n\n"
                     "Ví dụ: `Nguyễn Văn A lớp 7 tháng 1 350k`\n"
@@ -781,9 +482,9 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"❌ Tháng không hợp lệ: {', '.join(invalid_months)}\n\n"
                 "⚠️ Tháng phải từ 1 đến 12!\n\n"
                 "Ví dụ đúng:\n"
-                "• `Nguyễn Văn A lớp 7 350k` (tự động tra cứu)\n"
+                "• `Nguyễn Văn A lớp 7 tháng 1 350k`\n"
                 "• `Huỳnh Trân lớp 8 tháng 12 350k`\n"
-                "• `Lê Thị B lớp 9 tháng 1+2+3 1050k`",
+                "• `Lê Thị B lớp 9 tháng 1+2+3 500k`",
                 parse_mode='Markdown'
             )
             return
@@ -791,6 +492,9 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not thang_list:
             await update.message.reply_text("❌ Định dạng tháng không đúng! Ví dụ: 01/2026 hoặc 01/2026, 02/2026")
             return
+        
+        # Parse học phí
+        hocphi = float(hocphi_str.replace(",", "").replace(".", "").replace(" ", ""))
         
         # Ngày đóng tiền
         ngay = datetime.now().strftime("%d/%m/%Y")
@@ -815,20 +519,6 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     caption=f"✅ Biên lai học phí\n👤 {hoten}\n🏫 Lớp {lop}\n💰 {hocphi:,.0f} VNĐ",
                     reply_markup=reply_markup
                 )
-            
-            # ===== CẬP NHẬT GOOGLE SHEETS SAU KHI XUẤT BIÊN LAI =====
-            if auto_lookup and gc:
-                thang_moi = thang_ket_thuc  # Tháng cao nhất đã đóng
-                if cap_nhat_thang_da_dong(row_number, col_number, thang_moi):
-                    await update.message.reply_text(
-                        f"📊 Đã cập nhật Google Sheets: tháng đã đóng → **{thang_moi}**",
-                        parse_mode='Markdown'
-                    )
-                else:
-                    await update.message.reply_text(
-                        "⚠️ Không thể cập nhật Google Sheets. Vui lòng cập nhật thủ công!",
-                        parse_mode='Markdown'
-                    )
             
             # Gửi vào group (nếu có cấu hình)
             if GROUP_CHAT_ID:
@@ -895,10 +585,6 @@ def main():
         print("2. Gửi lệnh /newbot và làm theo hướng dẫn")
         print("3. Copy token và dán vào file này hoặc đặt biến môi trường TELEGRAM_BOT_TOKEN")
         return
-    
-    # Khởi tạo Google Sheets
-    print("🔄 Đang kết nối Google Sheets...")
-    init_google_sheets()
     
     # Tạo application
     application = Application.builder().token(TOKEN).build()

@@ -42,3 +42,6 @@ Thumbs.db
 
 # Local files
 bien_lai_app.py
+credentials.json
+test_google_sheets.py
+info.txt
