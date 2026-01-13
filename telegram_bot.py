@@ -24,8 +24,8 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "1rq1DDObItEtFeyyghv-Do-hPvYB_mwa
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Thống kê học phí")
 GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
-# Học phí mỗi tháng (VNĐ)
-HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "350000"))
+# Học phí mỗi tháng (VNĐ) - 315,000đ
+HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "315000"))
 
 # Khởi tạo Google Sheets client
 gc = None
@@ -147,9 +147,14 @@ def cap_nhat_thang_da_dong(row_number, col_number, thang_moi):
         return False
 
 def tinh_so_thang_dong(so_tien):
-    """Tính số tháng đóng dựa vào số tiền"""
-    so_thang = so_tien / HOC_PHI_MOI_THANG
-    return math.ceil(so_thang)
+    """
+    Tính số tháng đóng dựa vào số tiền
+    Ví dụ: 815k / 315k = 2.58 → làm tròn lên = 3 tháng
+    """
+    ty_le = so_tien / HOC_PHI_MOI_THANG
+    # Làm tròn lên (nếu > 1 chút thì vẫn tính thêm 1 tháng)
+    so_thang = math.ceil(ty_le)
+    return max(1, so_thang)  # Tối thiểu 1 tháng
 
 def parse_so_tien(text):
     """Parse số tiền từ text"""
@@ -329,24 +334,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎓 **BIÊN LAI HỌC PHÍ TỰ ĐỘNG**
 
 📊 **Google Sheets:** {sheets_status}
+💰 **Học phí:** {HOC_PHI_MOI_THANG:,}đ/tháng
 
-📝 **Cách sử dụng đơn giản:**
+📝 **Cách sử dụng:**
 
 Chỉ cần gõ **tên học sinh** và **số tiền**:
 ```
-Nguyễn Trung Kiệt 350k
+Nguyễn Trung Kiệt 815k
 ```
 
 Bot sẽ:
-1. 🔍 Tự động tìm học sinh trong danh sách
-2. 📋 Hiển thị thông tin và hỏi xác nhận
-3. 🖨️ In biên lai nếu bạn đồng ý
+1. 🔍 Tìm học sinh trong Google Sheet
+2. 📊 Tính số tháng: 815k ÷ 315k = 3 tháng
+3. 📋 Cập nhật tháng vào cột "Tháng"
+4. 🖨️ In biên lai ghi các tháng
 
-**Đóng nhiều tháng:**
-```
-Nguyễn Văn A 700k
-```
-(700k = 2 tháng với học phí {HOC_PHI_MOI_THANG:,}/tháng)
+**Ví dụ:**
+• Đã đóng tháng 1, gõ `Tên 315k` → biên lai tháng 2, Sheet cập nhật tháng 2
+• Đã đóng tháng 1, gõ `Tên 815k` → biên lai tháng 2, 3, 4, Sheet cập nhật tháng 4
 
 🚀 Gửi thông tin ngay!
 """
@@ -365,22 +370,22 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "❌ Không tìm thấy số tiền!\n\n"
                 "Vui lòng nhập theo mẫu:\n"
-                "`Tên học sinh 350k`\n\n"
-                "Ví dụ: `Nguyễn Văn A 350k`",
+                "`Tên học sinh 815k`\n\n"
+                "Ví dụ: `Nguyễn Trung Kiệt 815k`\n"
+                f"(Học phí: {HOC_PHI_MOI_THANG:,}đ/tháng)",
                 parse_mode='Markdown'
             )
             return
         
-        # Lấy tên (phần trước số tiền)
-        # Loại bỏ số tiền và các ký tự liên quan
-        hoten = re.sub(r'\d+(?:[.,]\d+)?\s*([kKtrTR]|triệu|nghìn)?', '', text).strip()
+        # Lấy tên (loại bỏ số tiền)
+        hoten = re.sub(r'\d+(?:[.,]\d+)?\s*([kKtrTR]|triệu|nghìn)?', '', text)
         hoten = re.sub(r'\s+', ' ', hoten).strip()
         
         if not hoten or len(hoten) < 2:
             await update.message.reply_text(
                 "❌ Không tìm thấy tên học sinh!\n\n"
                 "Vui lòng nhập theo mẫu:\n"
-                "`Tên học sinh 350k`",
+                "`Tên học sinh 815k`",
                 parse_mode='Markdown'
             )
             return
@@ -409,9 +414,16 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(results) == 1:
             # Tìm thấy 1 học sinh - hiển thị thông tin và hỏi xác nhận
             hs = results[0]
+            
+            # Tự động tính số tháng dựa vào số tiền
+            # Ví dụ: 815k / 315k = 2.58 → làm tròn lên = 3 tháng
             so_thang = tinh_so_thang_dong(so_tien)
-            thang_bat_dau = hs['thang_da_dong'] + 1
-            thang_ket_thuc = min(hs['thang_da_dong'] + so_thang, 12)
+            thang_bat_dau = hs['thang_da_dong'] + 1  # Tháng tiếp theo sau tháng đã đóng
+            thang_ket_thuc = hs['thang_da_dong'] + so_thang  # Tháng cuối cùng sẽ cập nhật vào Sheet
+            
+            # Giới hạn tối đa tháng 12
+            if thang_ket_thuc > 12:
+                thang_ket_thuc = 12
             
             if thang_bat_dau > 12:
                 await update.message.reply_text(
@@ -421,9 +433,9 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 return
             
-            # Tính lại số tháng thực tế nếu vượt quá tháng 12
+            # Tính số tháng thực tế
             so_thang_thuc = thang_ket_thuc - hs['thang_da_dong']
-            hocphi_thuc = so_thang_thuc * HOC_PHI_MOI_THANG
+            thang_list = list(range(thang_bat_dau, thang_ket_thuc + 1))
             
             # Lưu thông tin pending
             pending_receipts[user_id] = {
@@ -434,23 +446,26 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'thang_da_dong': hs['thang_da_dong'],
                 'thang_bat_dau': thang_bat_dau,
                 'thang_ket_thuc': thang_ket_thuc,
+                'thang_list': thang_list,  # Danh sách các tháng
                 'so_thang': so_thang_thuc,
-                'hocphi': hocphi_thuc
+                'hocphi': so_tien  # Dùng số tiền người dùng nhập
             }
             
             # Tạo thông báo xác nhận
             if so_thang_thuc == 1:
-                thang_text = f"tháng **{thang_bat_dau}**"
+                thang_text = f"tháng **{thang_list[0]}**"
             else:
-                thang_text = f"tháng **{thang_bat_dau}** đến tháng **{thang_ket_thuc}**"
+                thang_text = f"tháng **{', '.join(map(str, thang_list))}**"
             
             confirm_text = (
                 f"✅ **Tìm thấy học sinh:**\n\n"
                 f"👤 Họ tên: **{hs['hoten']}**\n"
                 f"🏫 Lớp: **{hs['lop']}**\n"
                 f"📅 Đã đóng đến: **tháng {hs['thang_da_dong']}**\n\n"
+                f"💵 **Số tiền nhập:** {so_tien:,.0f} VNĐ\n"
+                f"📊 **Tính được:** {so_thang_thuc} tháng ({so_tien:,} ÷ {HOC_PHI_MOI_THANG:,})\n\n"
                 f"📋 **Biên lai sẽ ghi:** {thang_text}\n"
-                f"💰 **Số tiền:** {hocphi_thuc:,.0f} VNĐ ({so_thang_thuc} tháng)\n\n"
+                f"📝 **Cập nhật Sheet:** cột Tháng → **{thang_ket_thuc}**\n\n"
                 f"❓ **Xác nhận in biên lai?**"
             )
             
@@ -480,7 +495,8 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'row_number': hs['row_number'],
                     'col_thang': hs['col_thang'],
                     'thang_da_dong': hs['thang_da_dong'],
-                    'so_tien': so_tien
+                    'so_tien': so_tien,
+                    'thang_chi_dinh': thang_chi_dinh  # Lưu tháng đã chỉ định
                 }
                 
                 keyboard.append([InlineKeyboardButton(
@@ -536,9 +552,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hs_data = pending_receipts[key]
         so_tien = hs_data['so_tien']
         
+        # Tự động tính số tháng dựa vào số tiền
         so_thang = tinh_so_thang_dong(so_tien)
         thang_bat_dau = hs_data['thang_da_dong'] + 1
-        thang_ket_thuc = min(hs_data['thang_da_dong'] + so_thang, 12)
+        thang_ket_thuc = hs_data['thang_da_dong'] + so_thang
+        
+        # Giới hạn tối đa tháng 12
+        if thang_ket_thuc > 12:
+            thang_ket_thuc = 12
         
         if thang_bat_dau > 12:
             await query.edit_message_text(
@@ -548,7 +569,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         so_thang_thuc = thang_ket_thuc - hs_data['thang_da_dong']
-        hocphi_thuc = so_thang_thuc * HOC_PHI_MOI_THANG
+        thang_list = list(range(thang_bat_dau, thang_ket_thuc + 1))
         
         # Lưu thông tin pending
         pending_receipts[user_id] = {
@@ -559,8 +580,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'thang_da_dong': hs_data['thang_da_dong'],
             'thang_bat_dau': thang_bat_dau,
             'thang_ket_thuc': thang_ket_thuc,
+            'thang_list': thang_list,
             'so_thang': so_thang_thuc,
-            'hocphi': hocphi_thuc
+            'hocphi': so_tien
         }
         
         # Xóa select options
@@ -569,17 +591,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del pending_receipts[k]
         
         if so_thang_thuc == 1:
-            thang_text = f"tháng **{thang_bat_dau}**"
+            thang_text = f"tháng **{thang_list[0]}**"
         else:
-            thang_text = f"tháng **{thang_bat_dau}** đến tháng **{thang_ket_thuc}**"
+            thang_text = f"tháng **{', '.join(map(str, thang_list))}**"
         
         confirm_text = (
             f"✅ **Đã chọn học sinh:**\n\n"
             f"👤 Họ tên: **{hs_data['hoten']}**\n"
             f"🏫 Lớp: **{hs_data['lop']}**\n"
             f"📅 Đã đóng đến: **tháng {hs_data['thang_da_dong']}**\n\n"
+            f"💵 **Số tiền nhập:** {so_tien:,.0f} VNĐ\n"
+            f"📊 **Tính được:** {so_thang_thuc} tháng\n\n"
             f"📋 **Biên lai sẽ ghi:** {thang_text}\n"
-            f"💰 **Số tiền:** {hocphi_thuc:,.0f} VNĐ ({so_thang_thuc} tháng)\n\n"
+            f"📝 **Cập nhật Sheet:** cột Tháng → **{thang_ket_thuc}**\n\n"
             f"❓ **Xác nhận in biên lai?**"
         )
         
@@ -604,22 +628,23 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.edit_message_text("⏳ Đang tạo biên lai...")
         
-        # Tạo danh sách tháng
+        # Tạo danh sách tháng từ thang_list đã lưu
         current_year = datetime.now().year
-        thang_list = []
-        for t in range(receipt_data['thang_bat_dau'], receipt_data['thang_ket_thuc'] + 1):
-            thang_list.append((f"{t:02d}", str(current_year)))
+        thang_list = receipt_data.get('thang_list', list(range(receipt_data['thang_bat_dau'], receipt_data['thang_ket_thuc'] + 1)))
+        thang_list_formatted = []
+        for t in thang_list:
+            thang_list_formatted.append((f"{t:02d}", str(current_year)))
         
         # Tạo file ảnh
         ngay = datetime.now().strftime("%d/%m/%Y")
-        thang_str_file = "_".join([f"{t[0]}{t[1]}" for t in thang_list])
+        thang_str_file = "_".join([f"{t[0]}{t[1]}" for t in thang_list_formatted])
         filename = f"BienLai_{receipt_data['hoten'].replace(' ', '_')}_{thang_str_file}.png"
         
         success = tao_bien_lai_image(
             filename, 
             receipt_data['hoten'], 
             receipt_data['lop'], 
-            thang_list, 
+            thang_list_formatted, 
             receipt_data['hocphi'], 
             ngay
         )
@@ -629,32 +654,34 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = [[InlineKeyboardButton("🗑 Xóa tin nhắn", callback_data="delete")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Text hiển thị các tháng trên biên lai
+            if len(thang_list) == 1:
+                thang_display = f"tháng {thang_list[0]}"
+            else:
+                thang_display = f"tháng {', '.join(map(str, thang_list))}"
+            
             with open(filename, 'rb') as f:
                 await context.bot.send_photo(
                     chat_id=query.message.chat_id,
                     photo=f,
-                    caption=f"✅ **Biên lai học phí**\n👤 {receipt_data['hoten']}\n🏫 Lớp {receipt_data['lop']}\n💰 {receipt_data['hocphi']:,.0f} VNĐ",
+                    caption=f"✅ **Biên lai học phí**\n👤 {receipt_data['hoten']}\n🏫 Lớp {receipt_data['lop']}\n📅 {thang_display}\n💰 {receipt_data['hocphi']:,.0f} VNĐ",
                     parse_mode='Markdown',
                     reply_markup=reply_markup
                 )
             
-            # Cập nhật Google Sheet
-            if cap_nhat_thang_da_dong(receipt_data['row_number'], receipt_data['col_thang'], receipt_data['thang_ket_thuc']):
+            # Cập nhật Google Sheet (cập nhật tháng cuối cùng)
+            thang_ket_thuc = max(thang_list)
+            if cap_nhat_thang_da_dong(receipt_data['row_number'], receipt_data['col_thang'], thang_ket_thuc):
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
-                    text=f"📊 Đã cập nhật Google Sheets: tháng đã đóng → **{receipt_data['thang_ket_thuc']}**",
+                    text=f"📊 Đã cập nhật Google Sheets: tháng đã đóng → **{thang_ket_thuc}**",
                     parse_mode='Markdown'
                 )
             
             # Gửi vào group
             if GROUP_CHAT_ID:
                 try:
-                    if receipt_data['so_thang'] == 1:
-                        thang_info = f"tháng {receipt_data['thang_bat_dau']}"
-                    else:
-                        thang_info = f"tháng {receipt_data['thang_bat_dau']} - {receipt_data['thang_ket_thuc']}"
-                    
-                    message = f"📋 **BIÊN LAI MỚI**\n\n👤 Họ tên: **{receipt_data['hoten']}**\n🏫 Lớp: **{receipt_data['lop']}**\n📅 Học phí {thang_info}\n💰 Số tiền: **{receipt_data['hocphi']:,.0f} VNĐ**\n🗓 Ngày đóng: {ngay}"
+                    message = f"📋 **BIÊN LAI MỚI**\n\n👤 Họ tên: **{receipt_data['hoten']}**\n🏫 Lớp: **{receipt_data['lop']}**\n📅 Học phí {thang_display}\n💰 Số tiền: **{receipt_data['hocphi']:,.0f} VNĐ**\n🗓 Ngày đóng: {ngay}"
                     
                     with open(filename, 'rb') as f:
                         await context.bot.send_photo(
