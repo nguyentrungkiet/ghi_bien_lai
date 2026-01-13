@@ -416,26 +416,26 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             hs = results[0]
             
             # Tự động tính số tháng dựa vào số tiền
-            # Ví dụ: 815k / 315k = 2.58 → làm tròn lên = 3 tháng
+            # Ví dụ: 1050k / 350k = 3 tháng
             so_thang = tinh_so_thang_dong(so_tien)
-            thang_bat_dau = hs['thang_da_dong'] + 1  # Tháng tiếp theo sau tháng đã đóng
-            thang_ket_thuc = hs['thang_da_dong'] + so_thang  # Tháng cuối cùng sẽ cập nhật vào Sheet
+            thang_bat_dau = hs['thang_da_dong'] + 1
+            thang_ket_thuc_raw = hs['thang_da_dong'] + so_thang
             
-            # Giới hạn tối đa tháng 12
-            if thang_ket_thuc > 12:
-                thang_ket_thuc = 12
-            
+            # Xử lý wrap tháng (tháng 13 → tháng 1)
             if thang_bat_dau > 12:
-                await update.message.reply_text(
-                    f"⚠️ Học sinh **{hs['hoten']}** lớp **{hs['lop']}** đã đóng đủ học phí cả năm (tháng 12)!\n"
-                    "Không thể xuất biên lai thêm.",
-                    parse_mode='Markdown'
-                )
-                return
+                thang_bat_dau = ((thang_bat_dau - 1) % 12) + 1
             
-            # Tính số tháng thực tế
-            so_thang_thuc = thang_ket_thuc - hs['thang_da_dong']
-            thang_list = list(range(thang_bat_dau, thang_ket_thuc + 1))
+            thang_ket_thuc = ((thang_ket_thuc_raw - 1) % 12) + 1
+            
+            # Tạo danh sách các tháng (xử lý wrap từ 12 → 1)
+            thang_list = []
+            current = hs['thang_da_dong'] + 1
+            for i in range(so_thang):
+                month = ((current + i - 1) % 12) + 1
+                thang_list.append(month)
+            
+            # Số tháng thực tế
+            so_thang_thuc = so_thang
             
             # Lưu thông tin pending
             pending_receipts[user_id] = {
@@ -555,21 +555,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Tự động tính số tháng dựa vào số tiền
         so_thang = tinh_so_thang_dong(so_tien)
         thang_bat_dau = hs_data['thang_da_dong'] + 1
-        thang_ket_thuc = hs_data['thang_da_dong'] + so_thang
+        thang_ket_thuc_raw = hs_data['thang_da_dong'] + so_thang
         
-        # Giới hạn tối đa tháng 12
-        if thang_ket_thuc > 12:
-            thang_ket_thuc = 12
-        
+        # Xử lý wrap tháng (tháng 13 → tháng 1)
         if thang_bat_dau > 12:
-            await query.edit_message_text(
-                f"⚠️ Học sinh **{hs_data['hoten']}** đã đóng đủ học phí cả năm!",
-                parse_mode='Markdown'
-            )
-            return
+            thang_bat_dau = ((thang_bat_dau - 1) % 12) + 1
         
-        so_thang_thuc = thang_ket_thuc - hs_data['thang_da_dong']
-        thang_list = list(range(thang_bat_dau, thang_ket_thuc + 1))
+        thang_ket_thuc = ((thang_ket_thuc_raw - 1) % 12) + 1
+        
+        # Tạo danh sách các tháng (xử lý wrap từ 12 → 1)
+        thang_list = []
+        current = hs_data['thang_da_dong'] + 1
+        for i in range(so_thang):
+            month = ((current + i - 1) % 12) + 1
+            thang_list.append(month)
+        
+        so_thang_thuc = so_thang
         
         # Lưu thông tin pending
         pending_receipts[user_id] = {
