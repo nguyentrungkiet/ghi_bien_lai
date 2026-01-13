@@ -671,7 +671,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             
             # Cập nhật Google Sheet (cập nhật tháng cuối cùng)
-            thang_ket_thuc = max(thang_list)
+            thang_ket_thuc = thang_list[-1]  # Lấy tháng cuối cùng trong danh sách
             if cap_nhat_thang_da_dong(receipt_data['row_number'], receipt_data['col_thang'], thang_ket_thuc):
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
