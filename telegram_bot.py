@@ -24,8 +24,8 @@ GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "1rq1DDObItEtFeyyghv-Do-hPvYB_mwa
 GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Thống kê học phí")
 GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json")
 
-# Học phí mỗi tháng (VNĐ) - 315,000đ
-HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "315000"))
+# Học phí mỗi tháng (VNĐ) - 350,000đ
+HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "350000"))
 
 # Khởi tạo Google Sheets client
 gc = None
