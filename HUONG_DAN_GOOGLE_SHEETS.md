@@ -4,7 +4,7 @@
 
 Bot đã được nâng cấp với tính năng **tự động tra cứu học sinh** từ Google Sheets:
 
-- Nhập `Nguyễn Trung Kiệt lớp 7 350k` → Bot tự động:
+- Nhập `Nguyễn Trung Kiệt lớp 7 400k` → Bot tự động:
   1. Tìm học sinh trong danh sách
   2. Xác định tháng đã đóng
   3. Tạo biên lai cho tháng tiếp theo
@@ -72,7 +72,7 @@ GOOGLE_SHEET_NAME=Thống kê học phí
 GOOGLE_CREDENTIALS_FILE=credentials.json
 
 # Học phí mỗi tháng (VNĐ)
-HOC_PHI_MOI_THANG=350000
+HOC_PHI_MOI_THANG=400000
 ```
 
 ## Cách lấy Google Sheet ID
@@ -83,13 +83,13 @@ ID: `1rq1DDObItEtFeyyghv-Do-hPvYB_mwaTWihTJ8lfQCk`
 
 ## Tính năng tự động tính tháng
 
-- Học phí mỗi tháng: **350,000 VNĐ**
-- Đóng **350k** = 1 tháng
-- Đóng **700k** = 2 tháng
-- Đóng **1,050k** = 3 tháng
+- Học phí mỗi tháng: **400,000 VNĐ**
+- Đóng **400k** = 1 tháng
+- Đóng **800k** = 2 tháng
+- Đóng **1,200k** = 3 tháng
 - ...
 
-Ví dụ: Học sinh đã đóng đến tháng 3, đóng thêm 700k → Biên lai ghi tháng 4, 5 và cập nhật Sheet thành tháng 5.
+Ví dụ: Học sinh đã đóng đến tháng 3, đóng thêm 800k → Biên lai ghi tháng 4, 5 và cập nhật Sheet thành tháng 5.
 
 ## Kiểm tra kết nối
 
@@ -108,16 +108,16 @@ Bot sẽ chạy mà không có tính năng tra cứu học sinh
 
 ### Cách 1: Tự động tra cứu (MỚI - Khuyên dùng)
 ```
-Nguyễn Trung Kiệt lớp 7 350k
+Nguyễn Trung Kiệt lớp 7 400k
 ```
 
 ### Cách 2: Chỉ định tháng (cũ)
 ```
-Nguyễn Trung Kiệt lớp 7 tháng 4 350k
+Nguyễn Trung Kiệt lớp 7 tháng 4 400k
 ```
 
 ### Đóng nhiều tháng
 ```
-Nguyễn Trung Kiệt lớp 7 1050k
+Nguyễn Trung Kiệt lớp 7 1200k
 ```
-(1,050k = 3 tháng)
+(1,200k = 3 tháng)

@@ -33,7 +33,7 @@
 
 1. Mở Telegram
 2. Tìm bot của bạn
-3. Gửi: `Nguyễn Văn A lớp 7 tháng 1 350k`
+3. Gửi: `Nguyễn Văn A lớp 7 tháng 1 400k`
 4. Nhận file PDF!
 
 ## 🎉 Hoàn tất!

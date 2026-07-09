@@ -95,7 +95,7 @@ Value: 8426267636:AAH4VFrILZ_A3vKMzDuzmGFkZbNJ4QZDjTs
 
 1. Mở Telegram
 2. Tìm bot của bạn
-3. Gửi tin nhắn test: `Nguyễn Văn A lớp 7 tháng 1 350k`
+3. Gửi tin nhắn test: `Nguyễn Văn A lớp 7 tháng 1 400k`
 4. Bot sẽ trả về file PDF!
 
 ## 🎉 Hoàn tất!

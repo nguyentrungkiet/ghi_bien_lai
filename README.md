@@ -4,7 +4,7 @@ Bot Telegram tự động tạo và gửi biên lai học phí PDF chỉ bằng 
 
 ## ✨ Tính năng
 
-- 📝 Nhập thông tin siêu ngắn gọn: `Nguyễn Văn A lớp 7 tháng 1 350k`
+- 📝 Nhập thông tin siêu ngắn gọn: `Nguyễn Văn A lớp 7 tháng 1 400k`
 - 📄 Tự động tạo PDF biên lai chuyên nghiệp
 - 🇻🇳 Hỗ trợ font tiếng Việt hoàn hảo
 - 🖼️ Tích hợp logo trường học
@@ -18,12 +18,12 @@ Gửi tin nhắn cho bot theo một trong các cách sau:
 
 **Cách 1: Siêu ngắn**
 ```
-Huỳnh Trân lớp 8 tháng 7 350k
+Huỳnh Trân lớp 8 tháng 7 400k
 ```
 
 **Cách 2: Nhiều tháng với dấu +**
 ```
-Nguyễn Văn A lớp 7 tháng 1+2+3 1050k
+Nguyễn Văn A lớp 7 tháng 1+2+3 1200k
 ```
 
 **Cách 3: Đầy đủ**
