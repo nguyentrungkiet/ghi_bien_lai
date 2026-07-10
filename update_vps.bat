@@ -5,14 +5,17 @@ echo   CẬP NHẬT BOT TELEGRAM TỪ GITHUB
 echo ========================================
 echo.
 
-echo [1/5] Dừng TẤT CẢ bot đang chạy...
-taskkill /F /IM python.exe 2>nul
-taskkill /F /IM pythonw.exe 2>nul
-echo ✓ Đã dừng tất cả Python process
+echo [1/5] Dừng CHỈ bot biên lai (không ảnh hưởng bot khác)...
+:: Tìm và dừng process telegram_bot
+for /f "tokens=2" %%a in ('wmic process where "CommandLine like '%%telegram_bot%%'" get ProcessId 2^>nul ^| findstr /r "[0-9]"') do (
+    echo Dừng bot biên lai PID: %%a
+    taskkill /F /PID %%a 2>nul
+)
+echo ✓ Đã dừng bot biên lai (nếu có)
 echo.
 
-echo [2/5] Đợi 5 giây để đảm bảo dừng hoàn toàn...
-timeout /t 5 /nobreak >nul
+echo [2/5] Đợi 15 giây để Telegram cập nhật...
+timeout /t 15 /nobreak >nul
 echo ✓ Đã đợi xong
 echo.
 
