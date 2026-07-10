@@ -723,7 +723,12 @@ def main():
     """Khởi chạy bot"""
     # Fix cho Windows Python 3.14+
     if sys.platform == 'win32':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        try:
+            # Tạo event loop mới cho Windows
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        except:
+            pass
     
     TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8426267636:AAH4VFrILZ_A3vKMzDuzmGFkZbNJ4QZDjTs")
     
