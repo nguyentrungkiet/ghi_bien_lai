@@ -720,7 +720,15 @@ def main():
     
     print("🤖 Bot đang chạy...")
     print("📱 Hãy mở Telegram và chat với bot!")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # Xóa webhook trước khi chạy polling (fix conflict)
+    try:
+        asyncio.get_event_loop().run_until_complete(application.bot.delete_webhook())
+        print("✅ Đã xóa webhook thành công!")
+    except Exception as e:
+        print(f"⚠️ Lỗi khi xóa webhook: {e}")
+    
+    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
