@@ -739,7 +739,8 @@ def main():
     print("🔄 Đang kết nối Google Sheets...")
     init_google_sheets()
     
-    application = Application.builder().token(TOKEN).build()
+    # Cấu hình timeout dài hơn cho VPS có mạng chậm
+    application = Application.builder().token(TOKEN).connect_timeout(30).read_timeout(30).write_timeout(30).pool_timeout(30).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
@@ -749,14 +750,32 @@ def main():
     print("🤖 Bot đang chạy...")
     print("📱 Hãy mở Telegram và chat với bot!")
     
-    # Xóa webhook trước khi chạy polling (fix conflict)
-    try:
-        asyncio.get_event_loop().run_until_complete(application.bot.delete_webhook())
-        print("✅ Đã xóa webhook thành công!")
-    except Exception as e:
-        print(f"⚠️ Lỗi khi xóa webhook: {e}")
+    # Xóa webhook trước khi chạy polling (fix conflict) với retry
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            asyncio.get_event_loop().run_until_complete(application.bot.delete_webhook(drop_pending_updates=True))
+            print("✅ Đã xóa webhook thành công!")
+            break
+        except Exception as e:
+            print(f"⚠️ Lỗi khi xóa webhook (lần {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                print("🔄 Thử lại sau 5 giây...")
+                import time
+                time.sleep(5)
+            else:
+                print("⚠️ Tiếp tục chạy bot mà không xóa webhook...")
     
-    application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
+    # Chạy polling với retry tự động
+    print("🔄 Đang kết nối Telegram...")
+    application.run_polling(
+        allowed_updates=Update.ALL_TYPES, 
+        drop_pending_updates=True,
+        pool_timeout=30,
+        read_timeout=30,
+        write_timeout=30,
+        connect_timeout=30
+    )
 
 if __name__ == '__main__':
     main()
