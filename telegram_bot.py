@@ -27,6 +27,8 @@ GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json
 
 # Học phí mỗi tháng (VNĐ) - 400,000đ
 HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "400000"))
+# Học phí lớp 10, 11, 12 (VNĐ) - 500,000đ
+HOC_PHI_LOP_10_12 = int(os.getenv("HOC_PHI_LOP_10_12", "500000"))
 
 # Khởi tạo Google Sheets client
 gc = None
@@ -147,12 +149,27 @@ def cap_nhat_thang_da_dong(row_number, col_number, thang_moi):
         print(f"❌ Lỗi cập nhật Google Sheet: {e}")
         return False
 
-def tinh_so_thang_dong(so_tien):
+def lay_hoc_phi_theo_lop(lop):
     """
-    Tính số tháng đóng dựa vào số tiền
-    Ví dụ: 815k / 315k = 2.58 → làm tròn lên = 3 tháng
+    Lấy học phí theo lớp
+    Lớp 10, 11, 12: 500,000đ
+    Các lớp khác: 400,000đ
     """
-    ty_le = so_tien / HOC_PHI_MOI_THANG
+    if lop:
+        lop_str = str(lop).strip()
+        # Kiểm tra lớp 10, 11, 12
+        if lop_str in ['10', '11', '12']:
+            return HOC_PHI_LOP_10_12
+    return HOC_PHI_MOI_THANG
+
+def tinh_so_thang_dong(so_tien, lop=None):
+    """
+    Tính số tháng đóng dựa vào số tiền và lớp
+    Ví dụ: 1000k / 500k = 2 tháng (lớp 10-12)
+           800k / 400k = 2 tháng (lớp khác)
+    """
+    hoc_phi = lay_hoc_phi_theo_lop(lop)
+    ty_le = so_tien / hoc_phi
     # Làm tròn lên (nếu > 1 chút thì vẫn tính thêm 1 tháng)
     so_thang = math.ceil(ty_le)
     return max(1, so_thang)  # Tối thiểu 1 tháng
@@ -335,7 +352,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎓 **BIÊN LAI HỌC PHÍ TỰ ĐỘNG**
 
 📊 **Google Sheets:** {sheets_status}
-💰 **Học phí:** {HOC_PHI_MOI_THANG:,}đ/tháng
+💰 **Học phí:**
+   • Lớp 5-9: {HOC_PHI_MOI_THANG:,}đ/tháng
+   • Lớp 10-12: {HOC_PHI_LOP_10_12:,}đ/tháng
 
 📝 **Cách sử dụng:**
 
@@ -416,9 +435,9 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Tìm thấy 1 học sinh - hiển thị thông tin và hỏi xác nhận
             hs = results[0]
             
-            # Tự động tính số tháng dựa vào số tiền
-            # Ví dụ: 1050k / 350k = 3 tháng
-            so_thang = tinh_so_thang_dong(so_tien)
+            # Tự động tính số tháng dựa vào số tiền và lớp
+            # Ví dụ: 1000k / 500k = 2 tháng (lớp 10-12)
+            so_thang = tinh_so_thang_dong(so_tien, hs['lop'])
             thang_bat_dau = hs['thang_da_dong'] + 1
             thang_ket_thuc_raw = hs['thang_da_dong'] + so_thang
             
@@ -458,13 +477,16 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 thang_text = f"tháng **{', '.join(map(str, thang_list))}**"
             
+            # Lấy học phí theo lớp
+            hoc_phi_lop = lay_hoc_phi_theo_lop(hs['lop'])
+            
             confirm_text = (
                 f"✅ **Tìm thấy học sinh:**\n\n"
                 f"👤 Họ tên: **{hs['hoten']}**\n"
                 f"🏫 Lớp: **{hs['lop']}**\n"
                 f"📅 Đã đóng đến: **tháng {hs['thang_da_dong']}**\n\n"
                 f"💵 **Số tiền nhập:** {so_tien:,.0f} VNĐ\n"
-                f"📊 **Tính được:** {so_thang_thuc} tháng ({so_tien:,} ÷ {HOC_PHI_MOI_THANG:,})\n\n"
+                f"📊 **Tính được:** {so_thang_thuc} tháng ({so_tien:,} ÷ {hoc_phi_lop:,})\n\n"
                 f"📋 **Biên lai sẽ ghi:** {thang_text}\n"
                 f"📝 **Cập nhật Sheet:** cột Tháng → **{thang_ket_thuc}**\n\n"
                 f"❓ **Xác nhận in biên lai?**"
@@ -553,8 +575,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hs_data = pending_receipts[key]
         so_tien = hs_data['so_tien']
         
-        # Tự động tính số tháng dựa vào số tiền
-        so_thang = tinh_so_thang_dong(so_tien)
+        # Tự động tính số tháng dựa vào số tiền và lớp
+        so_thang = tinh_so_thang_dong(so_tien, hs_data['lop'])
         thang_bat_dau = hs_data['thang_da_dong'] + 1
         thang_ket_thuc_raw = hs_data['thang_da_dong'] + so_thang
         

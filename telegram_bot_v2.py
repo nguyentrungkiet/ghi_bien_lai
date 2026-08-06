@@ -27,6 +27,8 @@ GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credentials.json
 
 # Học phí mỗi tháng (VNĐ)
 HOC_PHI_MOI_THANG = int(os.getenv("HOC_PHI_MOI_THANG", "400000"))
+# Học phí lớp 10, 11, 12 (VNĐ) - 500,000đ
+HOC_PHI_LOP_10_12 = int(os.getenv("HOC_PHI_LOP_10_12", "500000"))
 
 # Khởi tạo Google Sheets client
 gc = None
@@ -147,9 +149,23 @@ def cap_nhat_thang_da_dong(row_number, col_number, thang_moi):
         print(f"❌ Lỗi cập nhật Google Sheet: {e}")
         return False
 
-def tinh_so_thang_dong(so_tien):
-    """Tính số tháng đóng dựa vào số tiền"""
-    so_thang = so_tien / HOC_PHI_MOI_THANG
+def lay_hoc_phi_theo_lop(lop):
+    """
+    Lấy học phí theo lớp
+    Lớp 10, 11, 12: 500,000đ
+    Các lớp khác: 400,000đ
+    """
+    if lop:
+        lop_str = str(lop).strip()
+        # Kiểm tra lớp 10, 11, 12
+        if lop_str in ['10', '11', '12']:
+            return HOC_PHI_LOP_10_12
+    return HOC_PHI_MOI_THANG
+
+def tinh_so_thang_dong(so_tien, lop=None):
+    """Tính số tháng đóng dựa vào số tiền và lớp"""
+    hoc_phi = lay_hoc_phi_theo_lop(lop)
+    so_thang = so_tien / hoc_phi
     return math.ceil(so_thang)
 
 def parse_so_tien(text):
@@ -330,12 +346,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎓 **BIÊN LAI HỌC PHÍ TỰ ĐỘNG**
 
 📊 **Google Sheets:** {sheets_status}
+💰 **Học phí:**
+   • Lớp 5-9: {HOC_PHI_MOI_THANG:,}đ/tháng
+   • Lớp 10-12: {HOC_PHI_LOP_10_12:,}đ/tháng
 
 📝 **Cách sử dụng đơn giản:**
 
 Chỉ cần gõ **tên học sinh** và **số tiền**:
 ```
-Nguyễn Trung Kiệt 400k
+Nguyễn Trung Kiệt 500k
 ```
 
 Bot sẽ:
@@ -345,9 +364,9 @@ Bot sẽ:
 
 **Đóng nhiều tháng:**
 ```
-Nguyễn Văn A 800k
+Lớp 5-9: 800k = 2 tháng
+Lớp 10-12: 1000k = 2 tháng
 ```
-(800k = 2 tháng với học phí {HOC_PHI_MOI_THANG:,}/tháng)
 
 🚀 Gửi thông tin ngay!
 """
@@ -424,7 +443,8 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Tính lại số tháng thực tế nếu vượt quá tháng 12
             so_thang_thuc = thang_ket_thuc - hs['thang_da_dong']
-            hocphi_thuc = so_thang_thuc * HOC_PHI_MOI_THANG
+            hoc_phi_lop = lay_hoc_phi_theo_lop(hs['lop'])
+            hocphi_thuc = so_thang_thuc * hoc_phi_lop
             
             # Lưu thông tin pending
             pending_receipts[user_id] = {
@@ -549,7 +569,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         so_thang_thuc = thang_ket_thuc - hs_data['thang_da_dong']
-        hocphi_thuc = so_thang_thuc * HOC_PHI_MOI_THANG
+        hoc_phi_lop = lay_hoc_phi_theo_lop(hs_data['lop'])
+        hocphi_thuc = so_thang_thuc * hoc_phi_lop
         
         # Lưu thông tin pending
         pending_receipts[user_id] = {
