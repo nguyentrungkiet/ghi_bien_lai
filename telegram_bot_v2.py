@@ -759,16 +759,54 @@ def main():
             else:
                 print("⚠️ Tiếp tục chạy bot mà không xóa webhook...")
     
-    # Chạy polling với retry tự động
+    # Chạy polling với retry tự động và xử lý lỗi network
     print("🔄 Đang kết nối Telegram...")
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES, 
-        drop_pending_updates=True,
-        pool_timeout=30,
-        read_timeout=30,
-        write_timeout=30,
-        connect_timeout=30
-    )
+    
+    while True:
+        try:
+            application.run_polling(
+                allowed_updates=Update.ALL_TYPES, 
+                drop_pending_updates=True,
+                pool_timeout=30,
+                read_timeout=30,
+                write_timeout=30,
+                connect_timeout=30
+            )
+            break  # Nếu chạy thành công và thoát bình thường
+        except Exception as e:
+            error_msg = str(e)
+            print(f"❌ Lỗi kết nối: {error_msg}")
+            
+            # Kiểm tra nếu là lỗi network thì retry
+            if "NetworkError" in error_msg or "timeout" in error_msg.lower() or "ReadError" in error_msg:
+                print("⚠️ Lỗi mạng, thử kết nối lại sau 10 giây...")
+                import time
+                time.sleep(10)
+                print("🔄 Đang thử kết nối lại...")
+            else:
+                # Lỗi khác thì dừng
+                print(f"❌ Lỗi nghiêm trọng: {e}")
+                raise
 
 if __name__ == '__main__':
-    main()
+    # Retry toàn bộ bot nếu crash
+    max_bot_retries = 5
+    bot_retry_count = 0
+    
+    while bot_retry_count < max_bot_retries:
+        try:
+            main()
+            break  # Nếu chạy thành công
+        except KeyboardInterrupt:
+            print("\n🛑 Đã dừng bot bởi người dùng.")
+            break
+        except Exception as e:
+            bot_retry_count += 1
+            print(f"\n❌ Bot gặp lỗi (lần {bot_retry_count}/{max_bot_retries}): {e}")
+            if bot_retry_count < max_bot_retries:
+                print("🔄 Khởi động lại bot sau 15 giây...")
+                import time
+                time.sleep(15)
+            else:
+                print("❌ Đã vượt quá số lần thử, dừng bot.")
+                raise
