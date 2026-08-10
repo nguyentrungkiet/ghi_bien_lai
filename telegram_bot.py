@@ -518,8 +518,7 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'row_number': hs['row_number'],
                     'col_thang': hs['col_thang'],
                     'thang_da_dong': hs['thang_da_dong'],
-                    'so_tien': so_tien,
-                    'thang_chi_dinh': thang_chi_dinh  # Lưu tháng đã chỉ định
+                    'so_tien': so_tien
                 }
                 
                 keyboard.append([InlineKeyboardButton(
@@ -795,11 +794,7 @@ def main():
         try:
             application.run_polling(
                 allowed_updates=Update.ALL_TYPES, 
-                drop_pending_updates=True,
-                pool_timeout=30,
-                read_timeout=30,
-                write_timeout=30,
-                connect_timeout=30
+                drop_pending_updates=True
             )
             break  # Nếu chạy thành công và thoát bình thường
         except Exception as e:
