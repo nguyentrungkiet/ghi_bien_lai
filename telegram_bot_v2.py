@@ -343,34 +343,34 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sheets_status = "✅ Đã kết nối" if gc else "❌ Chưa kết nối"
     
     welcome_text = f"""
-🎓 **BIÊN LAI HỌC PHÍ TỰ ĐỘNG**
+🎓 <b>BIÊN LAI HỌC PHÍ TỰ ĐỘNG</b>
 
-📊 **Google Sheets:** {sheets_status}
-💰 **Học phí:**
+📊 <b>Google Sheets:</b> {sheets_status}
+💰 <b>Học phí:</b>
    • Lớp 5-9: {HOC_PHI_MOI_THANG:,}đ/tháng
    • Lớp 10-12: {HOC_PHI_LOP_10_12:,}đ/tháng
 
-📝 **Cách sử dụng đơn giản:**
+📝 <b>Cách sử dụng đơn giản:</b>
 
-Chỉ cần gõ **tên học sinh** và **số tiền**:
-```
+Chỉ cần gõ <b>tên học sinh</b> và <b>số tiền</b>:
+<code>
 Nguyễn Trung Kiệt 500k
-```
+</code>
 
 Bot sẽ:
 1. 🔍 Tự động tìm học sinh trong danh sách
 2. 📋 Hiển thị thông tin và hỏi xác nhận
 3. 🖨️ In biên lai nếu bạn đồng ý
 
-**Đóng nhiều tháng:**
-```
+<b>Đóng nhiều tháng:</b>
+<code>
 Lớp 5-9: 800k = 2 tháng
 Lớp 10-12: 1000k = 2 tháng
-```
+</code>
 
 🚀 Gửi thông tin ngay!
 """
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
+    await update.message.reply_text(welcome_text, parse_mode='HTML')
 
 async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Xử lý tin nhắn từ người dùng"""
@@ -387,7 +387,7 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Vui lòng nhập theo mẫu:\n"
                 "`Tên học sinh 400k`\n\n"
                 "Ví dụ: `Nguyễn Văn A 400k`",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
         
@@ -401,7 +401,7 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "❌ Không tìm thấy tên học sinh!\n\n"
                 "Vui lòng nhập theo mẫu:\n"
                 "`Tên học sinh 400k`",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
         
@@ -409,35 +409,35 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "⚠️ Chưa kết nối Google Sheets!\n"
                 "Vui lòng liên hệ admin để cấu hình.",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
         
         # Tìm học sinh
-        await update.message.reply_text(f"🔍 Đang tìm kiếm **{hoten}**...", parse_mode='Markdown')
+        await update.message.reply_text(f"🔍 Đang tìm kiếm <b>{hoten}</b>...", parse_mode='HTML')
         
         results = tim_hoc_sinh_theo_ten(hoten)
         
         if not results:
             await update.message.reply_text(
-                f"❌ Không tìm thấy học sinh **{hoten}** trong danh sách!\n\n"
+                f"❌ Không tìm thấy học sinh <b>{hoten}</b> trong danh sách!\n\n"
                 "📝 Vui lòng kiểm tra lại tên và nhập lại.",
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             return
         
         if len(results) == 1:
             # Tìm thấy 1 học sinh - hiển thị thông tin và hỏi xác nhận
             hs = results[0]
-            so_thang = tinh_so_thang_dong(so_tien)
+            so_thang = tinh_so_thang_dong(so_tien, hs['lop'])
             thang_bat_dau = hs['thang_da_dong'] + 1
             thang_ket_thuc = min(hs['thang_da_dong'] + so_thang, 12)
             
             if thang_bat_dau > 12:
                 await update.message.reply_text(
-                    f"⚠️ Học sinh **{hs['hoten']}** lớp **{hs['lop']}** đã đóng đủ học phí cả năm (tháng 12)!\n"
+                    f"⚠️ Học sinh <b>{hs['hoten']}</b> lớp <b>{hs['lop']}</b> đã đóng đủ học phí cả năm (tháng 12)!\n"
                     "Không thể xuất biên lai thêm.",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
                 return
             
@@ -562,14 +562,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         hs_data = pending_receipts[key]
         so_tien = hs_data['so_tien']
         
-        so_thang = tinh_so_thang_dong(so_tien)
+        so_thang = tinh_so_thang_dong(so_tien, hs_data['lop'])
         thang_bat_dau = hs_data['thang_da_dong'] + 1
         thang_ket_thuc = min(hs_data['thang_da_dong'] + so_thang, 12)
         
         if thang_bat_dau > 12:
             await query.edit_message_text(
-                f"⚠️ Học sinh **{hs_data['hoten']}** đã đóng đủ học phí cả năm!",
-                parse_mode='Markdown'
+                f"⚠️ Học sinh <b>{hs_data['hoten']}</b> đã đóng đủ học phí cả năm!",
+                parse_mode='HTML'
             )
             return
         
@@ -596,18 +596,18 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del pending_receipts[k]
         
         if so_thang_thuc == 1:
-            thang_text = f"tháng **{thang_bat_dau}**"
+            thang_text = f"tháng <b>{thang_bat_dau}</b>"
         else:
-            thang_text = f"tháng **{thang_bat_dau}** đến tháng **{thang_ket_thuc}**"
+            thang_text = f"tháng <b>{thang_bat_dau}</b> đến tháng <b>{thang_ket_thuc}</b>"
         
         confirm_text = (
-            f"✅ **Đã chọn học sinh:**\n\n"
-            f"👤 Họ tên: **{hs_data['hoten']}**\n"
-            f"🏫 Lớp: **{hs_data['lop']}**\n"
-            f"📅 Đã đóng đến: **tháng {hs_data['thang_da_dong']}**\n\n"
-            f"📋 **Biên lai sẽ ghi:** {thang_text}\n"
-            f"💰 **Số tiền:** {hocphi_thuc:,.0f} VNĐ ({so_thang_thuc} tháng)\n\n"
-            f"❓ **Xác nhận in biên lai?**"
+            f"✅ <b>Đã chọn học sinh:</b>\n\n"
+            f"👤 Họ tên: <b>{hs_data['hoten']}</b>\n"
+            f"🏫 Lớp: <b>{hs_data['lop']}</b>\n"
+            f"📅 Đã đóng đến: <b>tháng {hs_data['thang_da_dong']}</b>\n\n"
+            f"📋 <b>Biên lai sẽ ghi:</b> {thang_text}\n"
+            f"💰 <b>Số tiền:</b> {hocphi_thuc:,.0f} VNĐ ({so_thang_thuc} tháng)\n\n"
+            f"❓ <b>Xác nhận in biên lai?</b>"
         )
         
         keyboard = [
@@ -618,7 +618,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await query.edit_message_text(confirm_text, parse_mode='Markdown', reply_markup=reply_markup)
+        await query.edit_message_text(confirm_text, parse_mode='HTML', reply_markup=reply_markup)
         return
     
     if data == "confirm_yes":
@@ -661,7 +661,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id=query.message.chat_id,
                     photo=f,
                     caption=f"✅ **Biên lai học phí**\n👤 {receipt_data['hoten']}\n🏫 Lớp {receipt_data['lop']}\n💰 {receipt_data['hocphi']:,.0f} VNĐ",
-                    parse_mode='Markdown',
+                    parse_mode='HTML',
                     reply_markup=reply_markup
                 )
             
@@ -670,7 +670,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     chat_id=query.message.chat_id,
                     text=f"📊 Đã cập nhật Google Sheets: tháng đã đóng → **{receipt_data['thang_ket_thuc']}**",
-                    parse_mode='Markdown'
+                    parse_mode='HTML'
                 )
             
             # Gửi vào group
@@ -688,7 +688,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             chat_id=GROUP_CHAT_ID,
                             photo=f,
                             caption=message,
-                            parse_mode='Markdown'
+                            parse_mode='HTML'
                         )
                 except Exception as e:
                     print(f"⚠️ Không thể gửi vào group: {e}")
