@@ -751,7 +751,13 @@ def main():
         except:
             pass
     
-    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8426267636:AAEnvyc6REpqStPzZo13LChrXiNjFO_Dho0")
+    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not TOKEN:
+        try:
+            with open("token.txt", "r") as f:
+                TOKEN = f.read().strip()
+        except FileNotFoundError:
+            TOKEN = "YOUR_BOT_TOKEN_HERE"
     
     if TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("❌ CHƯA CẤU HÌNH BOT TOKEN!")
