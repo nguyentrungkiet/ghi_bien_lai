@@ -751,7 +751,7 @@ def main():
         except:
             pass
     
-    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8426267636:AAH4VFrILZ_A3vKMzDuzmGFkZbNJ4QZDjTs")
+    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8426267636:AAEnvyc6REpqStPzZo13LChrXiNjFO_Dho0")
     
     if TOKEN == "YOUR_BOT_TOKEN_HERE":
         print("❌ CHƯA CẤU HÌNH BOT TOKEN!")
