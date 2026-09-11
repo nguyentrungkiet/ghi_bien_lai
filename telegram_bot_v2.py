@@ -466,13 +466,13 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 thang_text = f"tháng **{thang_bat_dau}** đến tháng **{thang_ket_thuc}**"
             
             confirm_text = (
-                f"✅ **Tìm thấy học sinh:**\n\n"
-                f"👤 Họ tên: **{hs['hoten']}**\n"
-                f"🏫 Lớp: **{hs['lop']}**\n"
-                f"📅 Đã đóng đến: **tháng {hs['thang_da_dong']}**\n\n"
-                f"📋 **Biên lai sẽ ghi:** {thang_text}\n"
-                f"💰 **Số tiền:** {hocphi_thuc:,.0f} VNĐ ({so_thang_thuc} tháng)\n\n"
-                f"❓ **Xác nhận in biên lai?**"
+                f"✅ <b>Tìm thấy học sinh:</b>\n\n"
+                f"👤 Họ tên: <b>{hs['hoten']}</b>\n"
+                f"🏫 Lớp: <b>{hs['lop']}</b>\n"
+                f"📅 Đã đóng đến: <b>tháng {hs['thang_da_dong']}</b>\n\n"
+                f"📋 <b>Biên lai sẽ ghi:</b> {thang_text}\n"
+                f"💰 <b>Số tiền:</b> {hocphi_thuc:,.0f} VNĐ ({so_thang_thuc} tháng)\n\n"
+                f"❓ <b>Xác nhận in biên lai?</b>"
             )
             
             keyboard = [
@@ -483,15 +483,15 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(confirm_text, parse_mode='Markdown', reply_markup=reply_markup)
+            await update.message.reply_text(confirm_text, parse_mode='HTML', reply_markup=reply_markup)
         
         else:
             # Tìm thấy nhiều học sinh - yêu cầu chọn
-            msg = f"🔍 Tìm thấy **{len(results)}** học sinh có tên tương tự:\n\n"
+            msg = f"🔍 Tìm thấy <b>{len(results)}</b> học sinh có tên tương tự:\n\n"
             
             keyboard = []
             for i, hs in enumerate(results[:5]):  # Giới hạn 5 kết quả
-                msg += f"{i+1}. **{hs['hoten']}** - Lớp **{hs['lop']}** (đã đóng tháng {hs['thang_da_dong']})\n"
+                msg += f"{i+1}. <b>{hs['hoten']}</b> - Lớp <b>{hs['lop']}</b> (đã đóng tháng {hs['thang_da_dong']})\n"
                 
                 # Lưu thông tin
                 data_key = f"select_{i}"
@@ -514,10 +514,15 @@ async def xu_ly_tin_nhan(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += "\n📌 Vui lòng chọn học sinh:"
             
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(msg, parse_mode='Markdown', reply_markup=reply_markup)
+            await update.message.reply_text(msg, parse_mode='HTML', reply_markup=reply_markup)
     
     except Exception as e:
-        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            await update.message.reply_text(f"❌ Lỗi hệ thống: {e}")
+        except:
+            pass
         await update.message.reply_text(f"❌ Lỗi: {str(e)}")
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
